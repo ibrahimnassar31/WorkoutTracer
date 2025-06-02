@@ -1,35 +1,61 @@
-import { Request, Response,  } from 'express';
-import logger from '../utils/logger.js'; // Import logger
+import pkg from 'express';
 
-// Define an interface for custom errors
-interface CustomError extends Error {
-  statusCode?: number;
+import logger from '../utils/logger.ts';
+import config from '../config/index.ts';
+import { StatusCodes } from 'http-status-codes';
+
+const { Request, Response } = pkg;
+interface HandledError extends Error {
+    statusCode?: number;
+    code?: number; 
+    keyValue?: unknown; 
+    errors?: unknown; 
 }
 
-const errorHandler = (err: CustomError, req: Request, res: Response) => {
-  // Log the error details
-  // Using logger.error to ensure it goes to error-specific transports (like error.log)
+
+const errorHandlerMiddleware = (err: HandledError, req: Request, res: Response): void => {
+
   logger.error(`Error: ${err.message}`, {
-    stack: err.stack, // Log stack trace for debugging
+    stack: err.stack,
     method: req.method,
-    url: req.originalUrl,
-    ip: req.ip,
-    statusCode: err.statusCode || 500, // Use the custom interface property
-    // Add other relevant request details if needed
+    statusCode: err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR,
   });
 
-  // Determine the status code
-  const statusCode = err.statusCode || 500;
+  const customError: { statusCode: number; msg: string } = {
+    statusCode: err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR,
+    msg: err.message || 'Something went wrong, try again later',
+  };
 
-  // Send error response to the client
-  res.status(statusCode).json({
-    message: err.message || 'An unexpected error occurred',
-    // In development, you might send the stack trace back, but avoid in production
-    // stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-  });
 
-  // Optionally, if you have other error handlers down the chain
-  // next(err);
+  //  Handling Mongoose Validation Errors
+  if (err.name === 'ValidationError') {
+    const validationErrors = err.errors as any; 
+    customError.msg = Object.values(validationErrors)
+      .map((item: any) => item.message)
+      .join(', ');
+    customError.statusCode = StatusCodes.BAD_REQUEST;
+  }
+
+  // Handling Mongoose Duplicate Key Errors
+  if (err.code === 11000) {
+    const duplicateField = Object.keys(err.keyValue as any)[0]; 
+    const duplicateValue = (err.keyValue as any)[duplicateField];
+    customError.msg = `Duplicate value entered for ${duplicateField}: ${duplicateValue}, please choose another value`;
+    customError.statusCode = StatusCodes.BAD_REQUEST;
+  }
+
+
+
+
+
+  // Determine the response message based on the environment.
+  // In production, hide internal server error details from the client.
+  const responseMessage = config.env === 'production' && customError.statusCode === StatusCodes.INTERNAL_SERVER_ERROR
+    ? 'Something went wrong, try again later'
+    : customError.msg;
+
+  // Send the error response to the client.
+  res.status(customError.statusCode).json({ msg: responseMessage });
 };
 
-export default errorHandler; 
+export default errorHandlerMiddleware;
