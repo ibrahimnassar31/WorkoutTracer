@@ -1,24 +1,22 @@
 import express from 'express';
 import config from './config/index.ts';
 import connectDB from './config/db.ts'; 
-import {connectRedis} from './config/redis.ts'; 
 import setupMiddleware from './middlewares/index.ts'; 
 import errorHandler from './middlewares/errorHandler.ts';
-
+import userRoute from './routes/userRoutes.ts';
 const app = express();
 
 // Connect Database & Redis
 connectDB(); 
-connectRedis();
 
 setupMiddleware(app); 
 
 // Define API Routes
-
+app.use('/api/users', userRoute);
 
 
 app.get('/', (_req, res) => {
-  res.send('Number Guessing Game API is running!');
+  res.send('workout tracer  API is running!');
 });
 
 app.use(errorHandler);

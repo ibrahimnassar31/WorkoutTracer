@@ -1,10 +1,9 @@
-import pkg from 'express';
-
 import logger from '../utils/logger.ts';
 import config from '../config/index.ts';
 import { StatusCodes } from 'http-status-codes';
+import pkg from 'express';
 
-const { Request, Response } = pkg;
+const { Request, Response, NextFunction } = pkg;
 interface HandledError extends Error {
     statusCode?: number;
     code?: number; 
@@ -13,7 +12,7 @@ interface HandledError extends Error {
 }
 
 
-const errorHandlerMiddleware = (err: HandledError, req: Request, res: Response): void => {
+const errorHandlerMiddleware = (err: HandledError, req: Request, res: Response, next: NextFunction): void => {
 
   logger.error(`Error: ${err.message}`, {
     stack: err.stack,
@@ -54,7 +53,6 @@ const errorHandlerMiddleware = (err: HandledError, req: Request, res: Response):
     ? 'Something went wrong, try again later'
     : customError.msg;
 
-  // Send the error response to the client.
   res.status(customError.statusCode).json({ msg: responseMessage });
 };
 
